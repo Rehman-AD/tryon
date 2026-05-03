@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("api.chat");
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
 
 function buildSystemPrompt(userContext?: {
   name?: string;
@@ -53,39 +53,40 @@ export async function POST(req: NextRequest) {
       hasUserContext: !!userContext?.name,
     });
 
-    if (!ANTHROPIC_API_KEY) {
-      log.warn(`[${requestId}] ANTHROPIC_API_KEY not configured`);
+    if (!GEMINI_API_KEY) {
+      log.warn(`[${requestId}] GEMINI_API_KEY not configured`);
       return NextResponse.json(
-        { reply: "Chatbot is not configured. Please set ANTHROPIC_API_KEY in .env.local" },
+        { reply: "Chatbot is not configured. Please set GEMINI_API_KEY in .env.local" },
         { status: 200 }
       );
     }
 
-    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+    const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
     const systemPrompt = buildSystemPrompt(userContext);
 
-    const response = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 500,
-      system: systemPrompt,
-      messages: messages.map((m: { role: string; content: string }) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })),
+    // Gemini uses "model" role instead of "assistant"
+    const contents = messages.map((m: { role: string; content: string }) => ({
+      role: m.role === "assistant" ? "model" : "user",
+      parts: [{ text: m.content }],
+    }));
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.0-flash",
+      contents,
+      config: {
+        systemInstruction: systemPrompt,
+        maxOutputTokens: 500,
+      },
     });
 
     const reply =
-      response.content[0]?.type === "text"
-        ? response.content[0].text
-        : "Sorry, I couldn't generate a response.";
+      response.candidates?.[0]?.content?.parts?.find((p) => p.text)?.text ||
+      "Sorry, I couldn't generate a response.";
 
     const elapsed = Date.now() - start;
     log.info(`[${requestId}] Chat response`, {
       elapsed: `${elapsed}ms`,
       replyLength: reply.length,
-      model: response.model,
-      inputTokens: response.usage?.input_tokens,
-      outputTokens: response.usage?.output_tokens,
     });
 
     return NextResponse.json({ reply });
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
     log.error(`[${requestId}] Chat failed`, { elapsed: `${elapsed}ms`, error: errorMessage });
 
-    if (errorMessage.includes("rate_limit") || errorMessage.includes("429")) {
+    if (errorMessage.includes("rate_limit") || errorMessage.includes("429") || errorMessage.includes("quota")) {
       return NextResponse.json({
         reply: "The AI stylist is currently busy. Please try again in a moment!",
       });
