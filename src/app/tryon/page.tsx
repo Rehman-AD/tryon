@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
 import AuthGuard from "@/components/auth/AuthGuard";
@@ -234,7 +234,7 @@ function StyleSuggestionsPanel() {
 // ─── Main Page ────────────────────────────────────────────────────────
 
 function CustomTryOnContent() {
-  const { user, fullBodyBase64 } = useAuth();
+  const { user, fullBodyBase64, refreshProfile } = useAuth();
   const personInputRef = useRef<HTMLInputElement>(null);
   const garmentInputRef = useRef<HTMLInputElement>(null);
 
@@ -244,14 +244,44 @@ function CustomTryOnContent() {
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [validatingImage, setValidatingImage] = useState(false);
+
+  // Always refresh profile on mount so preferences are never stale
+  useEffect(() => { refreshProfile(); }, []);
+
+  const validatePerson = async (b64: string): Promise<boolean> => {
+    try {
+      const res = await fetch("/api/validate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: b64, type: "full_body" }),
+      });
+      const data = await res.json();
+      return data.valid !== false;
+    } catch {
+      return true;
+    }
+  };
 
   const handlePersonUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const b64 = await compressFullBodyImage(file);
-    setPersonImage(b64);
-    setResultImage(null);
-    setDescription("");
+    setUploadError("");
+    setValidatingImage(true);
+    try {
+      const b64 = await compressFullBodyImage(file);
+      const valid = await validatePerson(b64);
+      if (!valid) {
+        setUploadError("Please add an image of yourself or a person, not an irrelevant image.");
+        return;
+      }
+      setPersonImage(b64);
+      setResultImage(null);
+      setDescription("");
+    } finally {
+      setValidatingImage(false);
+    }
   };
 
   const handleGarmentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -307,21 +337,32 @@ function CustomTryOnContent() {
           {/* Person Image */}
           <div className="bg-white rounded-2xl border border-gray-100 p-6">
             <h3 className="font-semibold text-gray-900 mb-3">Your Photo</h3>
-            {personImage ? (
+            {validatingImage ? (
+              <div className="w-full aspect-[3/4] border-2 border-dashed border-purple-200 rounded-xl flex flex-col items-center justify-center gap-3 text-purple-500">
+                <svg className="animate-spin h-8 w-8" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                <p className="text-sm font-medium">Validating image...</p>
+              </div>
+            ) : personImage ? (
               <div className="space-y-3">
                 <img src={personImage} alt="You" className="w-full max-h-80 object-contain rounded-xl bg-gray-50" />
-                <button onClick={() => personInputRef.current?.click()} className="text-sm text-purple-600 font-medium hover:text-purple-700">
+                <button onClick={() => { personInputRef.current?.click(); setUploadError(""); }} className="text-sm text-purple-600 font-medium hover:text-purple-700">
                   Change photo
                 </button>
               </div>
             ) : (
               <button
-                onClick={() => personInputRef.current?.click()}
-                className="w-full aspect-[3/4] border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center text-gray-400 hover:border-purple-300 hover:text-purple-500 transition cursor-pointer"
+                onClick={() => { personInputRef.current?.click(); setUploadError(""); }}
+                className={`w-full aspect-[3/4] border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition cursor-pointer ${uploadError ? "border-red-300 text-red-400 bg-red-50" : "border-gray-200 text-gray-400 hover:border-purple-300 hover:text-purple-500"}`}
               >
                 <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                 <p className="font-medium text-sm">Upload your full-body photo</p>
               </button>
+            )}
+            {uploadError && (
+              <p className="mt-2 text-xs text-red-500 flex items-start gap-1.5">
+                <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                {uploadError}
+              </p>
             )}
             <input ref={personInputRef} type="file" accept="image/*" onChange={handlePersonUpload} className="hidden" />
           </div>

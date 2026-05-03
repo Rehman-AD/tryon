@@ -25,6 +25,8 @@ function TryOnContent() {
   const [resultImage, setResultImage] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
+  const [uploadError, setUploadError] = useState("");
+  const [validatingImage, setValidatingImage] = useState(false);
   const [addedToCart, setAddedToCart] = useState(false);
   const [userImage, setUserImage] = useState<string | null>(fullBodyBase64 || null);
 
@@ -47,10 +49,32 @@ function TryOnContent() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const b64 = await compressFullBodyImage(file);
-    setUserImage(b64);
-    setResultImage(null);
-    setDescription("");
+    setUploadError("");
+    setValidatingImage(true);
+    try {
+      const b64 = await compressFullBodyImage(file);
+      const res = await fetch("/api/validate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image: b64, type: "full_body" }),
+      });
+      const data = await res.json();
+      if (data.valid === false) {
+        setUploadError("Please add an image of yourself or a person, not an irrelevant image.");
+        return;
+      }
+      setUserImage(b64);
+      setResultImage(null);
+      setDescription("");
+    } catch {
+      // On validation error allow the upload
+      const b64 = await compressFullBodyImage(file);
+      setUserImage(b64);
+      setResultImage(null);
+      setDescription("");
+    } finally {
+      setValidatingImage(false);
+    }
   };
 
   const generateTryOn = async () => {
@@ -145,39 +169,54 @@ function TryOnContent() {
         {/* Upload Section (if no user image) */}
         {!userImage && !generating && (
           <div className="max-w-lg mx-auto bg-white rounded-2xl border border-gray-100 p-8 text-center mb-8">
-            <svg className="w-16 h-16 text-purple-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Your Photo</h3>
-            <p className="text-gray-500 text-sm mb-6">We need your full-body photo to show you wearing this outfit</p>
-            <div className="flex items-center justify-center gap-2">
-              {fullBodyBase64 ? (
-                <>
-                  <button
-                    onClick={() => { setUserImage(fullBodyBase64); setResultImage(null); setDescription(""); }}
-                    className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold hover:opacity-90 transition shadow-md flex items-center gap-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                    Use Profile Photo
-                  </button>
-                  <button
-                    onClick={() => uploadRef.current?.click()}
-                    className="p-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition"
-                    title="Upload a different photo"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => uploadRef.current?.click()}
-                  className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold hover:opacity-90 transition shadow-md flex items-center gap-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                  Upload Photo
-                </button>
-              )}
-            </div>
+            {validatingImage ? (
+              <div className="flex flex-col items-center gap-3 py-4 text-purple-500">
+                <svg className="animate-spin h-10 w-10" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                <p className="text-sm font-medium">Validating image...</p>
+              </div>
+            ) : (
+              <>
+                <svg className="w-16 h-16 text-purple-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">Your Photo</h3>
+                <p className="text-gray-500 text-sm mb-2">We need your full-body photo to show you wearing this outfit</p>
+                {uploadError && (
+                  <p className="text-red-500 text-sm mb-4 flex items-center justify-center gap-1.5">
+                    <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    {uploadError}
+                  </p>
+                )}
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  {fullBodyBase64 ? (
+                    <>
+                      <button
+                        onClick={() => { setUserImage(fullBodyBase64); setResultImage(null); setDescription(""); setUploadError(""); }}
+                        className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold hover:opacity-90 transition shadow-md flex items-center gap-2"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                        Use Profile Photo
+                      </button>
+                      <button
+                        onClick={() => { uploadRef.current?.click(); setUploadError(""); }}
+                        className="p-3 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 transition"
+                        title="Upload a different photo"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => { uploadRef.current?.click(); setUploadError(""); }}
+                      className="px-6 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold hover:opacity-90 transition shadow-md flex items-center gap-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                      Upload Photo
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
             <input ref={uploadRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
           </div>
         )}
