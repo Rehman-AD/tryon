@@ -15,17 +15,25 @@ function DashboardContent() {
   const { user } = useAuth();
   const [results, setResults] = useState<FullAnalysisResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [recommending, setRecommending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preferencesChanged, setPreferencesChanged] = useState(false);
   const [preferences, setPreferences] = useState<UserPreferences>({
     occasion: "casual",
     weather: "moderate",
     budget: "medium",
   });
 
+  const updatePreference = (key: keyof UserPreferences, value: string) => {
+    setPreferences((p) => ({ ...p, [key]: value }));
+    if (results) setPreferencesChanged(true);
+  };
+
   const handleAnalyze = async (file: File) => {
     setLoading(true);
     setError(null);
     setResults(null);
+    setPreferencesChanged(false);
     const uid = user?.uid;
     if (uid) logActivity(uid, "analysis_start", { occasion: preferences.occasion, weather: preferences.weather, budget: preferences.budget });
     try {
@@ -43,6 +51,31 @@ function DashboardContent() {
       if (uid) logActivity(uid, "analysis_error", { error: msg });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSetPreferences = async () => {
+    if (!results) return;
+    setRecommending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          analysis: results.analysis,
+          preferences,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Recommendation failed");
+      setResults((prev) => prev ? { ...prev, recommendations: data.recommendations } : prev);
+      setPreferencesChanged(false);
+      if (user?.uid) logActivity(user.uid, "preferences_updated", { occasion: preferences.occasion, weather: preferences.weather, budget: preferences.budget });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update recommendations.");
+    } finally {
+      setRecommending(false);
     }
   };
 
@@ -78,7 +111,7 @@ function DashboardContent() {
                   <label className="block text-sm font-medium text-gray-600 mb-1.5">Occasion</label>
                   <select
                     value={preferences.occasion}
-                    onChange={(e) => setPreferences((p) => ({ ...p, occasion: e.target.value }))}
+                    onChange={(e) => updatePreference("occasion", e.target.value)}
                     className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                   >
                     <option value="casual">Casual</option>
@@ -92,7 +125,7 @@ function DashboardContent() {
                   <label className="block text-sm font-medium text-gray-600 mb-1.5">Weather</label>
                   <select
                     value={preferences.weather}
-                    onChange={(e) => setPreferences((p) => ({ ...p, weather: e.target.value }))}
+                    onChange={(e) => updatePreference("weather", e.target.value)}
                     className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                   >
                     <option value="hot">Hot</option>
@@ -105,7 +138,7 @@ function DashboardContent() {
                   <label className="block text-sm font-medium text-gray-600 mb-1.5">Budget</label>
                   <select
                     value={preferences.budget}
-                    onChange={(e) => setPreferences((p) => ({ ...p, budget: e.target.value }))}
+                    onChange={(e) => updatePreference("budget", e.target.value)}
                     className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
                   >
                     <option value="low">Budget</option>
@@ -114,6 +147,27 @@ function DashboardContent() {
                   </select>
                 </div>
               </div>
+
+              {/* Set These Preferences button — appears when preferences change after analysis */}
+              {preferencesChanged && (
+                <button
+                  onClick={handleSetPreferences}
+                  disabled={recommending}
+                  className="mt-4 w-full flex items-center justify-center gap-2 py-3 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold hover:opacity-90 disabled:opacity-60 transition shadow-md shadow-violet-200"
+                >
+                  {recommending ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      Updating Recommendations...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>
+                      Set These Preferences
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
