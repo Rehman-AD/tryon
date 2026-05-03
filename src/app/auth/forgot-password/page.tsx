@@ -6,11 +6,21 @@ import Link from "next/link";
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
+  const [fieldError, setFieldError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFieldError("");
+    if (!email.trim()) {
+      setFieldError("Email is required.");
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFieldError("Enter a valid email address.");
+      return;
+    }
     setLoading(true);
     setError("");
 
@@ -90,11 +100,11 @@ export default function ForgotPasswordPage() {
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
+                    onChange={(e) => { setEmail(e.target.value); setFieldError(""); }}
                     placeholder="you@example.com"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                    className={`w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition ${fieldError ? "border-red-400 bg-red-50" : "border-gray-300"}`}
                   />
+                  {fieldError && <p className="mt-1 text-xs text-red-500">{fieldError}</p>}
                 </div>
 
                 <button
