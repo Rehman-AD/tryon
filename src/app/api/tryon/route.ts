@@ -36,6 +36,28 @@ export async function POST(req: NextRequest) {
     const userImageData = stripPrefix(userImage);
     const productImageData = stripPrefix(productImage);
 
+    // Server-side guard: reject banners, flyers, flex prints, or any non-personal photo
+    try {
+      const checkResponse = await ai.models.generateContent({
+        model: "gemini-2.0-flash",
+        contents: [
+          "Is this image a direct personal photograph of a real person taken with a camera or phone (such as a selfie or full-body photo)? Answer 'yes' only if it is a genuine personal photo of a real person. Answer 'no' if it is a poster, banner, flex, flyer, advertisement, graphic design, printed material, illustration, or any image that contains a person but was NOT taken as a direct personal photograph.",
+          { inlineData: { data: userImageData, mimeType: "image/jpeg" } },
+        ],
+      });
+      const answer = checkResponse.candidates?.[0]?.content?.parts?.find((p) => p.text)?.text?.toLowerCase().trim() ?? "yes";
+      if (answer.startsWith("no")) {
+        log.warn(`[${requestId}] Rejected: user image is not a personal photograph`);
+        return NextResponse.json(
+          { error: "Please upload a direct photo of yourself, not a banner, poster, flex, or graphic image." },
+          { status: 400 }
+        );
+      }
+    } catch {
+      // If the check itself fails, allow the request to continue
+      log.warn(`[${requestId}] Image pre-check failed, proceeding anyway`);
+    }
+
     // Image generation models to try (in order)
     const IMAGE_MODELS = [
       "gemini-2.5-flash-image",

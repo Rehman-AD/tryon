@@ -23,10 +23,12 @@ export async function POST(req: NextRequest) {
 
     const imageData = stripPrefix(image);
 
+    // For try-on, we need a strict check: must be a direct personal photograph,
+    // not a poster, banner, flex, flyer, graphic design, or printed material.
     const prompt =
       type === "full_body"
-        ? "Does this image show a person (full body or at least the upper body visible)? Reply with only 'yes' or 'no'."
-        : "Does this image clearly show a person or a human face? Reply with only 'yes' or 'no'.";
+        ? "Is this image a direct personal photograph of a real person taken with a camera or phone (such as a selfie or full-body photo)? Answer 'yes' only if it is a genuine personal photo of a real person. Answer 'no' if it is a poster, banner, flex, flyer, advertisement, graphic design, printed material, illustration, or any image that contains a person but was NOT taken as a direct personal photograph."
+        : "Does this image clearly show a person or a human face in a direct photograph? Reply with only 'yes' or 'no'.";
 
     const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
     const response = await ai.models.generateContent({

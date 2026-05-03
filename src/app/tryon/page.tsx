@@ -336,7 +336,8 @@ function CustomTryOnContent() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Person Image */}
           <div className="bg-white rounded-2xl border border-gray-100 p-6">
-            <h3 className="font-semibold text-gray-900 mb-3">Your Photo</h3>
+            <h3 className="font-semibold text-gray-900 mb-1">Add Your Own Photo</h3>
+            <p className="text-xs text-gray-400 mb-3">Must be a direct photo of yourself — not a banner, poster, or graphic.</p>
             {validatingImage ? (
               <div className="w-full aspect-[3/4] border-2 border-dashed border-purple-200 rounded-xl flex flex-col items-center justify-center gap-3 text-purple-500">
                 <svg className="animate-spin h-8 w-8" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
@@ -355,7 +356,8 @@ function CustomTryOnContent() {
                 className={`w-full aspect-[3/4] border-2 border-dashed rounded-xl flex flex-col items-center justify-center transition cursor-pointer ${uploadError ? "border-red-300 text-red-400 bg-red-50" : "border-gray-200 text-gray-400 hover:border-purple-300 hover:text-purple-500"}`}
               >
                 <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                <p className="font-medium text-sm">Upload your full-body photo</p>
+                <p className="font-medium text-sm">Add your own photo</p>
+                <p className="text-xs mt-1">Direct photo only — no banners or graphics</p>
               </button>
             )}
             {uploadError && (
