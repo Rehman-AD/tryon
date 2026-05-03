@@ -27,6 +27,32 @@ export default function ResultsPanel({ results, loading }: ResultsPanelProps) {
 
   const { analysis, recommendations } = results;
 
+  const isUnknown = (val: string) =>
+    !val || val.toLowerCase() === "unknown" || val.toLowerCase() === "n/a" || val === "-";
+
+  const allUnknown =
+    isUnknown(analysis.face_shape) &&
+    isUnknown(analysis.skin_tone) &&
+    isUnknown(analysis.body_type);
+
+  if (allUnknown) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 text-center gap-4">
+        <div className="w-14 h-14 rounded-full bg-red-50 flex items-center justify-center">
+          <svg className="w-7 h-7 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div>
+          <p className="font-semibold text-gray-800">Image could not be analyzed</p>
+          <p className="text-sm text-gray-500 mt-1 max-w-xs">
+            We couldn&apos;t detect a face or body in your photo. Please upload a clear, well-lit photo of yourself and try again.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Analysis Summary */}
